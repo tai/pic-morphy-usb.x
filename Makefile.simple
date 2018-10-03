@@ -1,0 +1,53 @@
+
+CC = /opt/microchip/xc8/v2.00/bin/xc8-cc -mcpu=18F14K50
+LD = $(CC)
+
+TOPDIR = .
+TARGET = firmware.elf
+
+CDEFS  = \
+	-I$(TOPDIR) -I$(TOPDIR)/framework/usb/inc \
+	-DXPRJ_LPCUSBDK_18F14K50=LPCUSBDK_18F14K50
+
+CFLAGS = \
+	-std=c90 -xassembler-with-cpp -gdwarf-3 \
+	-fno-short-double -fno-short-float \
+	-Wa,-a \
+	-mno-keep-startup -mno-download -mdefault-config-bits \
+	-memi=wordwrite -maddrqual=ignore -mstack=compiled:auto:auto:auto \
+	-msummary=-psect,-class,+mem,-hex,-file \
+
+LDFLAGS = \
+	-ginhx032 -Wl,--data-init -Wl,--defsym=__MPLAB_BUILD=1
+
+SRCS = $(wildcard $(TOPDIR)/*.c) \
+	$(TOPDIR)/framework/usb/src/usb_device.c \
+	$(TOPDIR)/framework/usb/src/usb_device_hid.c
+OBJS = $(SRCS:.c=.p1)
+
+.SUFFIXES:
+.SUFFIXES: .elf .hex .p1 .c .h
+
+.c.p1:
+	$(CC) -c $(CFLAGS) $(CDEFS) -o $@ $<
+
+all:
+	@echo "Type: make (build|upload|clean)"
+
+$(TARGET): $(OBJS)
+	$(CC) -Wl,-Map=$*.map -Wl,--memorysummary,$*.xml -o $@ $(OBJS)
+
+.PHONY: build
+build:
+	mkdir -p build
+	$(MAKE) -C build -f ../Makefile.simple TOPDIR=.. $(TARGET)
+
+upload: build
+	pk2cmd -P -M -F build/$(TARGET:.elf=.hex) -T -R
+
+upload-mplab:
+	pk2cmd -P -M -F dist/*/*/*.hex -T -R
+
+clean:
+	$(RM) *.d *.i *.p1 *.old *.bak *~
+	$(RM) -r build
